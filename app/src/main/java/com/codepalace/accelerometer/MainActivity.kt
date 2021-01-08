@@ -5,25 +5,25 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
-import android.widget.TextView
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.lifecycle.ViewModelStore
+import com.codepalace.accelerometer.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private lateinit var sensorManager: SensorManager
-    private lateinit var square: TextView
+    private var _binding: ActivityMainBinding? = null
+    private val binding get() = _binding!!
+    private val viewModel: MainActivityViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        // Keeps phone in light mode
+        _binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-
-        square = findViewById(R.id.tv_square)
-
         setUpSensorStuff()
     }
 
@@ -40,32 +40,54 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 SensorManager.SENSOR_DELAY_FASTEST
             )
         }
+        sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)?.also { gyro ->
+            sensorManager.registerListener(
+                this,
+                gyro,
+                SensorManager.SENSOR_DELAY_FASTEST,
+                SensorManager.SENSOR_DELAY_FASTEST
+            )
+        }
     }
 
     override fun onSensorChanged(event: SensorEvent?) {
-        // Checks for the sensor we have registered
-        if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
-            //Log.d("Main", "onSensorChanged: sides ${event.values[0]} front/back ${event.values[1]} ")
+        val type = event?.sensor?.type
+        when (type) {
+            Sensor.TYPE_ACCELEROMETER -> {
+                //Log.d("Main", "onSensorChanged: sides ${event.values[0]} front/back ${event.values[1]} ")
 
-            // Sides = Tilting phone left(10) and right(-10)
-            val sides = event.values[0]
+                // Sides = Tilting phone left(10) and right(-10)
+                val sides = event.values[0]
 
-            // Up/Down = Tilting phone up(10), flat (0), upside-down(-10)
-            val upDown = event.values[1]
+                // Up/Down = Tilting phone up(10), flat (0), upside-down(-10)
+                val upDown = event.values[1]
+                if (!viewModel.isALreadySet) {
+                    viewModel.updateXAxis(sides)
+                    viewModel.updateIsALreadySet(true)
+                }
 
-            square.apply {
-                rotationX = upDown * 3f
-                rotationY = sides * 3f
-                rotation = -sides
-                translationX = sides * -10
-                translationY = upDown * 10
+                binding.tvSquare.apply {
+                    rotationX = upDown * 3f
+                    rotationY = sides * 3f
+                    rotation = -sides
+                    translationX = sides * -10
+                    translationY = upDown * 10
+                }
+
+                // Changes the colour of the square if it's completely flat
+                val color = if (upDown.toInt() == 0 && sides.toInt() == 0) Color.GREEN else Color.RED
+                binding.tvSquare.setBackgroundColor(color)
+
+                binding.tvSquare.text = "up/down ${upDown.toInt()}\nleft/right ${sides.toInt()}, xAxis: ${viewModel.xAxis}"
             }
 
-            // Changes the colour of the square if it's completely flat
-            val color = if (upDown.toInt() == 0 && sides.toInt() == 0) Color.GREEN else Color.RED
-            square.setBackgroundColor(color)
+            Sensor.TYPE_GYROSCOPE -> {
 
-            square.text = "up/down ${upDown.toInt()}\nleft/right ${sides.toInt()}"
+            }
+
+            else -> {
+
+            }
         }
     }
 
